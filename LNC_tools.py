@@ -3,35 +3,80 @@ def set_dir(titlestring):
     from Tkinter import Tk
     import tkFileDialog
      
-     
-    master = Tk()
-    master.withdraw() #hiding tkinter window
-     
-    file_path = tkFileDialog.askdirectory(title=titlestring)
+    # Make a top-level instance and hide since it is ugly and big.
+    root = Tk()
+    root.withdraw()
+    
+    # Make it almost invisible - no decorations, 0 size, top left corner.
+    root.overrideredirect(True)
+    root.geometry('0x0+0+0')
+#    
+    # Show window again and lift it to top so it can get focus,
+    # otherwise dialogs will end up behind the terminal.
+    root.deiconify()
+    root.attributes("-topmost",1)
+    root.focus_force()
+    
+    file_path = tkFileDialog.askdirectory(parent=root,title=titlestring)
      
     if file_path != "":
        return str(file_path)
      
     else:
        print "you didn't open anything!"
+    
+    # Get rid of the top-level instance once to make it actually invisible.
+    root.destroy() 
+     
+
+       
+    
      
 def get_files(titlestring,filetype = ('.txt','*.txt')):
     from Tkinter import Tk
     import tkFileDialog
+    import re
      
      
-    master = Tk()
-    master.withdraw() #hiding tkinter window
+    # Make a top-level instance and hide since it is ugly and big.
+    root = Tk()
+    root.withdraw()
+    
+    # Make it almost invisible - no decorations, 0 size, top left corner.
+    root.overrideredirect(True)
+    root.geometry('0x0+0+0')
+#    
+    # Show window again and lift it to top so it can get focus,
+    # otherwise dialogs will end up behind the terminal.
+    root.deiconify()
+    root.attributes("-topmost",1)
+    root.focus_force()
 
-    file_path = []
+    filenames = []
      
-    file_path = tkFileDialog.askopenfilename(title=titlestring, filetypes=[filetype,("All files",".*")],multiple='True')
-     
-    if file_path != "":
-       return str(file_path)
-     
-    else:
-       print "you didn't open anything!"
+    filenames = tkFileDialog.askopenfilename(title=titlestring, filetypes=[filetype,("All files",".")],multiple='True')
+    
+    #do nothing if already a python list
+    if filenames == "": 
+        print "You didn't open anything!"  
+        return
+        
+    if isinstance(filenames,list): return filenames
+
+    #http://docs.python.org/library/re.html
+    #the re should match: {text and white space in brackets} AND anynonwhitespacetokens
+    #*? is a non-greedy match for any character sequence
+    #\S is non white space
+
+    #split filenames string up into a proper python list
+    result = re.findall("{.*?}|\S+",filenames)
+
+    #remove any {} characters from the start and end of the file names
+    result = [ re.sub("^{|}$","",i) for i in result ]     
+    return result
+
+    
+    root.destroy()
 
 def lnc_reader(filepath):
     #---------------------------------------------------------------------------
@@ -119,6 +164,17 @@ def alt_resample(df, altrange):
     
     x = df.columns
     
+    minalt = df.columns[0]
+    maxalt = df.columns[-1]
+    
+    if minalt > altrange[0]:
+        altrange = altrange[altrange >= minalt]
+        print "WARNING: Minimum altitude reset to {0}".format(altrange[0])
+    
+    if maxalt < altrange[-1]:
+        altrange = altrange[altrange <= maxalt]
+        print "WARNING: Maximum altitude reset to {0}".format(altrange[-1])
+    
     numrows = np.size(df.index)
     numcols = np.size(altrange)
 
@@ -166,6 +222,60 @@ def BR_mask(backscatter, data, delta):
     print 'Done!'
 
     return masked_data
+
+def save_to_HDF(filename, df, headerin):
+    import pandas as pan
+    import tables
+    import time
+    
+    #Define class header to create columns to hold header data from .mpl binary file
+    class header(tables.IsDescription):
+        location = tables.StringCol(3)
+        dtype = tables.StringCol(6)        
+        timestamp = tables.Time32Col(1) 
+        timestep = tables.Time32Col(1)
+        numbins = tables.UInt32Col(1) #total number of bins per channel
+        bintime = tables.Float32Col(1)  #bin width in seconds
+        minalt = tables.Float32Col(1) #altitude of lidar station in m AMSL
+        
+       
+    with tables.open_file(filename, mode = 'w', title = 'MPL data file') as h5filename:
+        
+        headertbl = h5filename.create_table('/','Header',header,'Ancillary Data')
+          
+        headerdat = headertbl.row
+                  
+        headerdat['location'] = headerin['location']
+        headerdat['dtype'] = headerin['dtype']      
+        headerdat['timestamp'] = headerin['timestamp']
+        headerdat.append()
+        headertbl.flush()
+        
+    store = pan.HDFStore(filename)
+    store['data'] = df
+    store.close()
+
+def from_HDF(filename):
+    import pandas as pan
+    import tables
+    import time, datetime
+    
+    with tables.openFile(filename,'r+') as h5file: 
+        try: 
+            table = h5file.root.Header
+        except 'tables.exceptions.NoSuchNodeError':
+            print 'This file is in the wrong format'
+            return
+    
+        header = {}
+        for h in table.iterrows():
+            header['location'] = h['location']
+            header['dtype'] = h['dtype']      
+            header['timestamp'] = datetime.datetime.fromtimestamp(h['timestamp'])
+ 
+        data = pan.read_hdf(filename,'data')
+
+    return data, header
 
 if __name__=='__main__':
     import pandas as pan

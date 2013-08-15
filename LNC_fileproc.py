@@ -2,6 +2,7 @@ import pandas as pan
 import numpy as np
 import os,sys
 import LNC_tools as LNC
+import time, datetime
 
 #----------------------------------------------------------------------------
 #Uses tools created in LNC_tools to open all files in a folder and resample
@@ -17,6 +18,9 @@ olddir = os.getcwd()
 newdir = LNC.set_dir('Select Event Folder')
 
 os.chdir(newdir)
+
+d_type = 'PR532'
+m_type = 'BR532'
 
 files = os.listdir(newdir)
 maskfiles = []
@@ -47,9 +51,9 @@ for f in files:
 #initially, mask files are designated BR1064 for 1064nm Backscatter Ratio
 
 for f in rawfiles:
-    if 'BR' in f:
+    if m_type in f:
         maskfiles.append(f)
-    else:
+    elif d_type in f:
         datafiles.append(f)
 
 #make sure the files are in a common order of ascending date (assuming they're all
@@ -62,6 +66,10 @@ datafiles.sort()
 if len(maskfiles) != len(datafiles):
     sys.exit("Error: Mask files don't match data files")
     
+counter = 0
+dataheader = {}
+maskheader = {}
+datamaskheader = {}
 
 #double check to make sure the mask files match up with the data files
 for d,m in zip(datafiles, maskfiles):
@@ -70,6 +78,14 @@ for d,m in zip(datafiles, maskfiles):
     print 'Checking mask/data match for %s'%(d_date)
     if d_date == m_date and d_stat == m_stat:
         print 'Check!'
+        counter += 1
+        if counter == 1:            
+            dataheader['location'] = d_stat
+            dataheader['dtype'] = d_type
+            maskheader['location'] = m_stat
+            maskheader['dtype'] = m_type
+            datamaskheader['location'] = d_stat
+            datamaskheader['dtype'] = dataheader['dtype']+'msk'
         continue
     else:
         sys.exit("Error: Mask files don't match data files")
@@ -105,17 +121,25 @@ end = m_event.index[-1]
 d_event = LNC.time_resample(d_event,timestep, timerange = [start,end])
 m_event = LNC.time_resample(m_event,timestep,timerange = [start,end])
 
+dt = d_event.index[0].to_pydatetime()
+dataheader['timestamp'] = time.mktime(dt.timetuple())
+maskheader['timestamp'] = dataheader['timestamp']
+datamaskheader['timestamp'] = dataheader['timestamp']
 
 dfmask = LNC.BR_mask(m_event,d_event, delta)
 
-d_filename = datafiles[0].split('.')[0]+'-'+datafiles[-1].split('.')[0]
-d_event.save(d_filename+'.pickle')
+#d_filename = datafiles[0].split('.')[0]+'-'+datafiles[-1].split('.')[0]
+#d_event.save(d_filename+'.pickle')
+#
+#m_filename = maskfiles[0].split('.')[0]+'-'+maskfiles[-1].split('.')[0]
+#m_event.save(m_filename+'.pickle')
+#
+#dfmask.save(d_filename+'_masked.pickle')
 
-m_filename = maskfiles[0].split('.')[0]+'-'+maskfiles[-1].split('.')[0]
-m_event.save(m_filename+'.pickle')
+d_filename = datafiles[0].split('.')[0]+'-'+datafiles[-1].split('.')[0]+'.h5'
+m_filename = maskfiles[0].split('.')[0]+'-'+maskfiles[-1].split('.')[0]+'.h5'
+dmask_filename = maskfiles[0].split('.')[0]+'-'+maskfiles[-1].split('.')[0]+'masked.h5'
 
-dfmask.save(d_filename+'_masked.pickle')
-
-
-
-
+LNC.save_to_HDF(d_filename, d_event, dataheader)
+LNC.save_to_HDF(m_filename, m_event, maskheader)
+LNC.save_to_HDF(dmask_filename, dfmask, datamaskheader)
