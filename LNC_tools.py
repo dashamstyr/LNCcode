@@ -54,7 +54,7 @@ def get_files(titlestring,filetype = ('.txt','*.txt')):
 
     filenames = []
      
-    filenames = tkFileDialog.askopenfilename(title=titlestring, filetypes=[filetype,("All files",".")],multiple='True')
+    filenames = tkFileDialog.askopenfilename(title=titlestring, filetypes=[filetype,("All files","*.*")],multiple='True')
     
     #do nothing if already a python list
     if filenames == "": 
@@ -223,64 +223,57 @@ def BR_mask(backscatter, data, delta):
 
     return masked_data
 
-def save_to_HDF(filename, df, headerin):
+def save_to_HDF(filename, header, df_dict):
     import pandas as pan
-    import tables
-    import time
     
     #Define class header to create columns to hold header data from .mpl binary file
-    class header(tables.IsDescription):
-        location = tables.StringCol(3)
-        dtype = tables.StringCol(6)        
-        timestamp = tables.Time32Col(1) 
-        timestep = tables.Time32Col(1)
-        numbins = tables.UInt32Col(1) #total number of bins per channel
-        bintime = tables.Float32Col(1)  #bin width in seconds
-        minalt = tables.Float32Col(1) #altitude of lidar station in m AMSL
-        
-       
-    with tables.open_file(filename, mode = 'w', title = 'MPL data file') as h5filename:
-        
-        headertbl = h5filename.create_table('/','Header',header,'Ancillary Data')
-          
-        headerdat = headertbl.row
-                  
-        headerdat['location'] = headerin['location']
-        headerdat['dtype'] = headerin['dtype']      
-        headerdat['timestamp'] = headerin['timestamp']
-        headerdat.append()
-        headertbl.flush()
+#    class header(tables.IsDescription):
+#        location = tables.StringCol(3)
+#        dtype = tables.StringCol(6)        
+#        timestamp = tables.Time32Col(1) 
+#        timestep = tables.Time32Col(1)
+#        numbins = tables.UInt32Col(1) #total number of bins per channel
+#        bintime = tables.Float32Col(1)  #bin width in seconds
+#        minalt = tables.Float32Col(1) #altitude of lidar station in m AMSL
+#        
+#       
+#    with tables.open_file(filename, mode = 'w', title = 'MPL data file') as h5filename:
+#        
+#        headertbl = h5filename.create_table('/','Header',header,'Ancillary Data')
+#          
+#        headerdat = headertbl.row
+#                  
+#        headerdat['location'] = headerin['location']
+#        headerdat['dtype'] = headerin['dtype']      
+#        headerdat['timestamp'] = headerin['timestamp']
+#        headerdat.append()
+#        headertbl.flush()
         
     store = pan.HDFStore(filename)
-    store['data'] = df
+    store['header'] = header
+    
+    for k,v in df_dict.iteritems():
+        store[k] = v
+        
     store.close()
 
-def from_HDF(filename):
+def from_HDF(filename, datatypes):
     import pandas as pan
-    import tables
-    import time, datetime
     
-    with tables.openFile(filename,'r+') as h5file: 
-        try: 
-            table = h5file.root.Header
-        except 'tables.exceptions.NoSuchNodeError':
-            print 'This file is in the wrong format'
-            return
+#    store = pan.HDFStore(filename)
     
-        header = {}
-        for h in table.iterrows():
-            header['location'] = h['location']
-            header['dtype'] = h['dtype']      
-            header['timestamp'] = datetime.datetime.fromtimestamp(h['timestamp'])
- 
-        data = pan.read_hdf(filename,'data')
-
-    return data, header
+    header = pan.read_hdf(filename,'header')
+    
+    dataout_dict = {}    
+    for dtype in datatypes:
+        dataout_dict[dtype] = pan.read_hdf(filename,dtype)
+        
+#    store.close()
+    
+    return header, dataout_dict
 
 if __name__=='__main__':
-    import pandas as pan
     import numpy as np
-    import datetime as dt
 
     delta = 0.1
 

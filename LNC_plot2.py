@@ -91,14 +91,12 @@ def forceAspect(ax,aspect=1):
 
 def dateticks(ax, axisdat,hours = [], fsize = 21, tcolor = 'k'):
     import matplotlib.pyplot as plt
-    from time import strftime
     
     dold = axisdat[0].strftime('%d')
     hold = axisdat[0].strftime('%H')
     tickmarks = []
     ticklabels = []
     n = 0
-    l = len(axisdat)
 
     
     for d in axisdat:
@@ -108,7 +106,6 @@ def dateticks(ax, axisdat,hours = [], fsize = 21, tcolor = 'k'):
             tickmarks.append(n)
         else:
             htemp = d.strftime('%H')
-            mtemp = d.strftime('%M')
             if not hours:
                 if htemp != hold:
                     ticklabels.append(d.strftime('%H'))
@@ -188,9 +185,9 @@ if __name__ == '__main__':
 ##    plt.subplots_adjust(top = 0.86, bottom = 0.01, left = 0.09, right = 0.95)
 ##
     
-    startdate = dt.datetime(2013,4,29,17,0)
-    enddate = dt.datetime(2013,4,30,16,0)
-    minalt = 500
+    startdate = dt.datetime(2013,5,1,0,0)
+    enddate = dt.datetime(2013,5,5,16,0)
+    minalt = 150
     maxalt = 10000
     
     fig = plt.figure()
@@ -201,15 +198,17 @@ if __name__ == '__main__':
     
     os.chdir('E:\CORALNet\ASCII_Files')
     
-    filepath = LNC.get_files('Select first file to be plotted', filetype = ('.pickle','*.pickle'))
+    filepath = LNC.get_files('Select files', filetype = ('.h5','*.h5'))
     
     if filepath[0] == '{':
         filepath = filepath[1:-1]
     
-    [path, filename] = os.path.split(filepath)
+    [path, filename] = os.path.split(filepath[0])
     
     os.chdir(path)
-    df = pan.load(filename)
+    dtypes = ['BR532','PR532']
+    header, df_dict = LNC.from_HDF(filename, dtypes)
+    df = df_dict[dtypes[0]]
     df = df.loc[startdate:enddate,:maxalt]
     if minalt != 0:
         df.loc[:,:minalt] = 'nan'
@@ -222,13 +221,8 @@ if __name__ == '__main__':
     cbar.ax.tick_params(labelsize = fsize)
     dateticks(ax, datetime, hours = h_set, fsize = fsize, tcolor = 'w')
     ax.set_xticklabels([])
-
-    filename = LNC.get_files('Select second file to be plotted', filetype = ('.pickle','*.pickle'))
-    
-    if filename[0] == '{':
-        filename = filename[1:-1]
-        
-    df = pan.load(filename)
+       
+    df = df_dict[dtypes[1]]
     df = df.loc[startdate:enddate,:maxalt]
     if minalt != 0:
         df.loc[:,:minalt] = 'nan'
