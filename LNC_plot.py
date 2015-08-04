@@ -188,10 +188,10 @@ if __name__ == '__main__':
 ##    plt.subplots_adjust(top = 0.86, bottom = 0.01, left = 0.09, right = 0.95)
 ##
     
-    startdate = dt.datetime(2013,4,29,17,0)
-    enddate = dt.datetime(2013,4,30,16,0)
-    minalt = 500
-    maxalt = 10000
+#    startdate = dt.datetime(2013,4,29,17,0)
+#    enddate = dt.datetime(2013,4,30,16,0)
+    minalt = 200
+    maxalt = 12000
     
     fig = plt.figure()
 
@@ -199,18 +199,15 @@ if __name__ == '__main__':
     
     olddir = os.getcwd()
     
-    os.chdir('E:\CORALNet\ASCII_Files')
+    os.chdir('C:\Users\dashamstyr\Dropbox\Lidar Files\UBC Cross-Cal\Processed')
     
     filepath = LNC.get_files('Select first file to be plotted', filetype = ('.pickle','*.pickle'))
     
     if filepath[0] == '{':
         filepath = filepath[1:-1]
     
-    [path, filename] = os.path.split(filepath)
-    
-    os.chdir(path)
-    df = pan.load(filename)
-    df = df.loc[startdate:enddate,:maxalt]
+    df = LNC.from_HDF(filepath,[])
+    df = df.loc[:,:maxalt]
     if minalt != 0:
         df.loc[:,:minalt] = 'nan'
     

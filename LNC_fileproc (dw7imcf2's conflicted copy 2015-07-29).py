@@ -161,52 +161,52 @@ def BR_mask(backscatter, data, delta):
 
     return masked_data
 
-def save_to_HDF(filename, header, df_dict):
-    
-    #Define class header to create columns to hold header data from .mpl binary file
-#    class header(tables.IsDescription):
-#        location = tables.StringCol(3)
-#        dtype = tables.StringCol(6)        
-#        timestamp = tables.Time32Col(1) 
-#        timestep = tables.Time32Col(1)
-#        numbins = tables.UInt32Col(1) #total number of bins per channel
-#        bintime = tables.Float32Col(1)  #bin width in seconds
-#        minalt = tables.Float32Col(1) #altitude of lidar station in m AMSL
+#def save_to_HDF(filename, header, df_dict):
+#    
+#    #Define class header to create columns to hold header data from .mpl binary file
+##    class header(tables.IsDescription):
+##        location = tables.StringCol(3)
+##        dtype = tables.StringCol(6)        
+##        timestamp = tables.Time32Col(1) 
+##        timestep = tables.Time32Col(1)
+##        numbins = tables.UInt32Col(1) #total number of bins per channel
+##        bintime = tables.Float32Col(1)  #bin width in seconds
+##        minalt = tables.Float32Col(1) #altitude of lidar station in m AMSL
+##        
+##       
+##    with tables.open_file(filename, mode = 'w', title = 'MPL data file') as h5filename:
+##        
+##        headertbl = h5filename.create_table('/','Header',header,'Ancillary Data')
+##          
+##        headerdat = headertbl.row
+##                  
+##        headerdat['location'] = headerin['location']
+##        headerdat['dtype'] = headerin['dtype']      
+##        headerdat['timestamp'] = headerin['timestamp']
+##        headerdat.append()
+##        headertbl.flush()
 #        
-#       
-#    with tables.open_file(filename, mode = 'w', title = 'MPL data file') as h5filename:
-#        
-#        headertbl = h5filename.create_table('/','Header',header,'Ancillary Data')
-#          
-#        headerdat = headertbl.row
-#                  
-#        headerdat['location'] = headerin['location']
-#        headerdat['dtype'] = headerin['dtype']      
-#        headerdat['timestamp'] = headerin['timestamp']
-#        headerdat.append()
-#        headertbl.flush()
-        
-    store = pan.HDFStore(filename)
-    store['header'] = header
-    
-    for k,v in df_dict.iteritems():
-        store[k] = v
-        
-    store.close()
-
-def fromHDF(filename, datatypes):
-    
 #    store = pan.HDFStore(filename)
-    
-    header = pan.read_hdf(filename,'header')
-    
-    dataout_dict = {}    
-    for dtype in datatypes:
-        dataout_dict[dtype] = pan.read_hdf(filename,dtype)
-        
+#    store['header'] = header
+#    
+#    for k,v in df_dict.iteritems():
+#        store[k] = v
+#        
 #    store.close()
-    
-    return header, dataout_dict
+
+#def fromHDF(filename, datatypes):
+#    
+##    store = pan.HDFStore(filename)
+#    
+#    header = pan.read_hdf(filename,'header')
+#    
+#    dataout_dict = {}    
+#    for dtype in datatypes:
+#        dataout_dict[dtype] = pan.read_hdf(filename,dtype)
+#        
+##    store.close()
+#    
+#    return header, dataout_dict
 
 if __name__=='__main__':
     olddir = os.getcwd()

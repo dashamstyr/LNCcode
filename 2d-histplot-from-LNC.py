@@ -4,8 +4,7 @@ Created on Wed Jul 17 13:10:30 2013
 
 @author: dashamstyr
 """
-import site
-site.addsitedir('E:\CORALNet\ASCII_Files')
+
 import LNC_tools as ltools
 import os, sys
 import numpy as np
@@ -16,9 +15,7 @@ from matplotlib import cm
 
 olddir = os.getcwd()
 
-#os.chdir('C:\SigmaMPL\DATA')
-
-#os.chdir('E:\CORALNet\ASCII_Files')
+os.chdir('C:\Users\dashamstyr\Dropbox\PhD - General')
 
 filepath = ltools.get_files('Select LNC file', filetype = ('.h5', '*.h5'))
 
@@ -51,7 +48,7 @@ numbins = 100
 depolmin = 0.0
 depolmax = 0.5
 copolmin = 0.0
-copolmax = 100.0
+copolmax = 5.0
 
 copolhist=h2d.fullhist(copolvals,numbins,copolmin,copolmax,-9999.,-8888.)
 depolhist=h2d.fullhist(depolvals,numbins,depolmin,depolmax,-9999.,-8888.)
