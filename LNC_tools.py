@@ -39,11 +39,15 @@ class LNC:
         self.extinction = None  #slot for extinction array
         self.scenepanel = None  #slot for panel containing scene analysis features
         
-    def frompickle(self,BRfile,PRfile,MSKfile):
+    def frompickle(self,BRfile,PRfile,MSKfile,altcor=True):
         self.BR=pan.read_pickle(BRfile)
         self.PR=pan.read_pickle(PRfile)
         self.MSK=pan.read_pickle(MSKfile)
         
+        if altcor:
+            #if this is true, change altitude units from meters to kilometers       
+            for df in [self.BR,self.PR,self.MSK]:
+                df.rename(columns=lambda x: x/1000.0,inplace=True)
         return self
         
     def fromHDF(self, filename,verbose = False):
@@ -338,12 +342,12 @@ class LNC:
                 if self.backscatter:
                     datasets.append(('backscatter',self.backscatter))
                 elif verbose:
-                    print "No Backscatter available for SNR calc"
+                    print "No Backscatter available for sigma calc"
             if d=='extinction' or d=='all':
                 if self.extinction:
                     datasets.append(('extinction',self.extinction))
                 elif verbose:
-                    print "No extinction available for SNR calc"
+                    print "No extinction available for sigma calc"
         
         for dset_name,dset in datasets: 
             sigmadict[dset_name] = []
@@ -811,7 +815,7 @@ if __name__ == '__main__':
     print 'Import LNC data from .pickle file'
     
     LNCtest = LNC()
-    LNCtest.frompickle(BRfilename,PRfilename,MSKfilename)
+    LNCtest.frompickle(BRfilename,PRfilename,MSKfilename,altcor=True)
     
     print 'Done'
     
