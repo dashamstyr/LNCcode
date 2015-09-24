@@ -339,12 +339,12 @@ class LNC:
             if d=='PR' or d=='all':
                 datasets.append(('PR',self.PR))
             if d=='backscatter' or d=='all':
-                if self.backscatter:
+                if self.backscatter is not None:
                     datasets.append(('backscatter',self.backscatter))
                 elif verbose:
                     print "No Backscatter available for sigma calc"
             if d=='extinction' or d=='all':
-                if self.extinction:
+                if self.extinction is not None:
                     datasets.append(('extinction',self.extinction))
                 elif verbose:
                     print "No extinction available for sigma calc"
@@ -395,12 +395,12 @@ class LNC:
             if d=='PR' or d=='all':
                 datasets.append(('PR',self.PR))
             if d=='backscatter' or d=='all':
-                if self.backscatter:
+                if self.backscatter is not None:
                     datasets.append(('backscatter',self.backscatter))
                 elif verbose:
                     print "No Backscatter available for SNR calc"
             if d=='extinction' or d=='all':
-                if self.extinction:
+                if self.extinction is not None:
                     datasets.append(('extinction',self.extinction))
                 elif verbose:
                     print "No extinction available for SNR calc"
@@ -804,7 +804,7 @@ if __name__ == '__main__':
     olddir = os.getcwd()
     delta = 0.1
 
-    os.chdir('K:\CORALNet\ASCII_Files\UBC_March_E1')
+    os.chdir('D:\CORALNet\ASCII_Files\Smoke2012\UBC\August')
     
     BRfilename = get_files('Select BR pickle file',filetype=('.pickle','*.pickle'))[0]
     PRfilename = get_files('Select PR pickle file',filetype=('.pickle','*.pickle'))[0]
@@ -821,9 +821,9 @@ if __name__ == '__main__':
     
     print 'Calculate all corrections'
 #    
-    LNCtest.calc_all(verbose=True)
+    LNCtest.calc_all(verbose=False)
     
-    LNCtest.save_to_HDF('UBC_03172010-03202010_proc-v2.h5')
+    LNCtest.save_to_HDF('UBC_08092012-08152012-proc_v3.h5')
 #    os.chdir(olddir)
 
     os.chdir(olddir)

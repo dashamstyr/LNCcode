@@ -21,8 +21,7 @@ from scipy import optimize as opt
 from scipy.ndimage.filters import generic_filter as genfilt
 
 import LNC_tools as ltools
-import LNC_plot as lplot
-import MPLplot as mplot
+import LNC_plot3 as lplot
 
 
 def molecular_detect(LNCin,**kwargs):    
@@ -104,7 +103,7 @@ def PBL_detect(LNCin,**kwargs):
     """
     """    
     wavelet=kwargs.get('wavelet',dog)
-    widths=kwargs.get('widths',[4])
+    widths=kwargs.get('widths',np.arange(3,10))
     layerwidth=kwargs.get('layerwidth',4)
     layer_min=kwargs.get('layer_min',None)
     mol_min=kwargs.get('mol_min',None)
@@ -128,33 +127,46 @@ def PBL_detect(LNCin,**kwargs):
             minloc=[minval[1] for minval in tempmin if minval[0]==layerwidth]
             
             #PBL height can only be negative (min) values and edge effects are removed
-            #by remving edges layerwidth in size\        
-            layerwidthindex=np.where(widths==layerwidth)[0]
-            CWTvals=tempcwt[layerwidthindex,:][0]
-            CWTminvals=CWTvals[minloc]
-            CWTminalts=z[minloc]        
-            tempmolht=mol_min.loc[i,'Base']
-            
+            #by remving edges layerwidth in size
             try:
-                templayerht=layer_min.loc[i,'Base']
-            except AttributeError:
-                templayerht=layer_min
-                
+                tempalt=z[minloc[1]]
+            except IndexError:
+                tempalt=z[minloc[0]]
+            
+            
+#            layerwidthindex=np.where(widths==layerwidth)[0]
+#            CWTvals=tempcwt[layerwidthindex,:][0]
+#            CWTminvals=CWTvals[minloc]
+#            CWTminalts=z[minloc]
+#            
+            tempmolht=mol_min.loc[i] 
+            templayerht=layer_min.loc[i]
+            
             edgealt=z[layerwidth-1]
             
             if np.isnan(templayerht) or templayerht<edgealt:
-                maxalt=z[-1]
+                templayeralt=z[-1]
             else:
-                maxalt=templayerht
-                    
-            try:
-                PBLval=min([v[0] for v in zip(CWTminvals,CWTminalts) if edgealt<=v[1]<=maxalt])                
-            except ValueError:
-                PBLval = None
+                templayeralt=templayerht
+            
+            if np.isnan(tempmolht) or tempmolht<edgealt:
+                tempmolalt=z[-1]
+            else:
+                tempmolalt=tempmolht
+            
+            maxalt=np.min([tempmolalt,templayeralt])
+            
+            if tempalt<=maxalt:
+                PBLout.ix[i]=tempalt
+            else:
                 PBLout.ix[i]=maxalt
+#            try:
+#                PBLout.ix[i]=min([v for v in minalts if v<=maxalt])                
+#            except ValueError:
+#                PBLout.ix[i]=maxalt
                     
-            if PBLval is not None:
-                PBLout.ix[i]=CWTminalts[np.where(CWTminvals==PBLval)]
+#            if PBLval is not None:
+#                PBLout.ix[i]=CWTminalts[np.where(CWTminvals==PBLval)]
             
     return PBLout
 
@@ -228,6 +240,7 @@ def find_layers(LNCin,**kwargs):
     winsize=kwargs.get('winsize',10) 
     bg_alt=kwargs.get('bg_alt',None)
     udefrat=kwargs.get('udefrat',0)
+    maxaeroalt=kwargs.get('maxaeroalt',10.0)
     
     if bg_alt is None:
         bg_alt=LNCin.BR.columns.values[-10]
@@ -302,11 +315,19 @@ def find_layers(LNCin,**kwargs):
                     layertype='Insufficient Signal'
                     layersubtype='Insufficient Signal'
                     layerratio=udefrat
+                elif meandepolrat >= 0.5:
+                    layertype='Cloud'  
+                    layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
+                                                           icethresh=icethresh)    
+                elif minalt>= maxaeroalt:
+                    layertype='Cloud'  
+                    layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
+                                                           icethresh=icethresh)
                 elif peakval >= cloudthresh[0]:
                     layertype='Cloud'  
                     layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
                                                            icethresh=icethresh)    
-                elif peakval >= cloudthresh[1] and meandepolrat>0.25:
+                elif peakval >= cloudthresh[1] and meandepolrat>np.mean([waterthresh,icethresh]):
                     layertype='Cloud'  
                     layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
                                                            icethresh=icethresh)
@@ -545,7 +566,7 @@ def aerosoltypefilter(depolrat,**kwargs):
         typeout='Smoke / Urban'
         ratout=65.0
     elif depolrat <= dustthresh:
-        typeout='Mixed Smoke & Dust'
+        typeout='Polluted Dust'
         ratout=60.0
     else:
         typeout='Dust'
@@ -566,7 +587,7 @@ def colormask_fromdict(LNCin,pblin,molin,layersin):
                'Water Cloud':3,
                'Mixed Cloud':4,
                'Dust':5,
-               'Mixed Smoke & Dust':6,
+               'Polluted Dust':6,
                'Smoke / Urban':7,
                'Unidentified Aerosol':8,
                'Insufficient Signal':9}
@@ -618,6 +639,7 @@ def findalllayers(**kwargs):
     layerCWTrange=kwargs.get('layerCWTrange',np.arange(2,5))
     PBLwavelet=kwargs.get('PBLwavelet',dog)
     PBLCWTrange=kwargs.get('PBLCWTrange',np.arange(2,10))
+    PBLwidth=kwargs.get('PBLwidth',7)
     savemasks=kwargs.get('savemasks',False)
     savemaskname=kwargs.get('savemaskname','testmasksall.h5')
     sigma0=kwargs.get('sigma0',None)
@@ -626,11 +648,12 @@ def findalllayers(**kwargs):
     icethresh=kwargs.get('icethresh',0.35)
     smokethresh=kwargs.get('smokethresh',0.10)
     dustthresh=kwargs.get('dustthresh',0.20)
+    maxaeroalt=kwargs.get('maxaeroalt',10.0)
     
     if LNCin is None:
         if filename is not None:
             LNCin = ltools.LNC()
-            mplin.fromHDF(filename)
+            LNCin.fromHDF(filename)
         else:
             print "No LNC file or filename provided"
             return
@@ -644,17 +667,24 @@ def findalllayers(**kwargs):
                    'cloudthresh':cloudthresh,'CWTwidth':CWTwidth,
                    'widths':layerCWTrange,'minwidth':minwidth,'bg_alt':bg_alt,
                    'waterthresh':waterthresh,'icethresh':icethresh,'smokethresh':smokethresh,
-                   'dustthresh':dustthresh,'sigma0':sigma0,'depolsigma0':depolsigma0}
+                   'dustthresh':dustthresh,'sigma0':sigma0,'depolsigma0':depolsigma0,'maxaeroalt':maxaeroalt}
     layers=find_layers(LNCin,**layerkwargs)  
-    mol_min=molecular.loc['Layer0']
+    mol_min=molecular.loc['Layer0']['Base']
     try:
-        layer_min=layers.loc['Layer0']
+        layer0_base=layers.loc['Layer0']['Base']
+        layer0_top=layers.loc['Layer0']['Top']
+        profmin=LNCin.BR.columns[-1]
+        layer_min = pan.Series(data=[b if b>profmin else t for b,t in zip(layer0_base,layer0_top)],index=LNCin.BR.index)
+
     except KeyError:
         layer_min=LNCin.BR.columns[-1]
-        
-    PBLkwargs = {'wavelet':PBLwavelet,'mol_min':mol_min,'layer_min':layer_min,
-                 'widths':PBLCWTrange,'layerwidth':minwidth,'bg_alt':bg_alt}
-    pbl=PBL_detect(LNCin,**PBLkwargs)
+    
+    if doPBL:    
+        PBLkwargs = {'wavelet':PBLwavelet,'mol_min':mol_min,'layer_min':layer_min,
+                     'widths':PBLCWTrange,'layerwidth':PBLwidth,'bg_alt':bg_alt}
+        pbl=PBL_detect(LNCin,**PBLkwargs)
+    else:
+        pbl=pan.Series(0.0,index=LNCin.BR.index)
     
     if savemasks:    
         store=pan.HDFStore(savemaskname)
@@ -691,6 +721,13 @@ def scenemaker(layerdict,**kwargs):
     savefile=kwargs.get('savefile',False)
     savefilename=kwargs.get('savefilename','test.h5')
     colordict=kwargs.get('colordict',None)
+    waterthresh=kwargs.get('waterthresh',0.10)
+    icethresh=kwargs.get('icethresh',0.35)
+    smokethresh=kwargs.get('smokethresh',0.10)
+    dustthresh=kwargs.get('dustthresh',0.20)
+    maxaeroalt=kwargs.get('maxaeroalt',10.0)
+    cloudthresh=kwargs.get('cloudthresh',(10.0,2.0))
+    minlayerwidth=kwargs.get('minlayerwidth',4)
     
     if colordict is None:
         colordict={'Clear Air':0,
@@ -699,7 +736,7 @@ def scenemaker(layerdict,**kwargs):
                    'Water Cloud':3,
                    'Mixed Cloud':4,
                    'Dust':5,
-                   'Mixed Smoke & Dust':6,
+                   'Polluted Dust':6,
                    'Smoke / Urban':7,
                    'Unidentified Aerosol':8,
                    'Insufficient Signal':9}
@@ -777,29 +814,67 @@ def scenemaker(layerdict,**kwargs):
             
             #find and classify unidentified areas
             tempprof=typemask.loc[t]
-            tempprof.fillna('Insufficient Signal',inplace=True)
-            tempmask=pan.Series(alts,index=[v=='Insufficient Signal' for v in tempprof])
+            tempprof.fillna('Unidentified',inplace=True)
+            tempmask=pan.Series(alts,index=[v=='Unidentified' for v in tempprof])
             tempgroups=tempmask.groupby(level=0) 
             #assuming uniform altitude steps
             altstep=alts[1]-alts[0]
             for g in tempgroups:
                 if g[0]:
                     tempalts=g[1]
-                    for key,alt in groupby(enumerate(tempalts), lambda (i,x):i-(x-tempalts.iloc[0])/altstep):                    
-                        layeralt=map(operator.itemgetter(1),alt)
+                    tempcounts= [int(round((x-tempalts.iloc[0])/altstep)) for x in tempalts]
+                    for key,count in groupby(enumerate(tempcounts), lambda (i,x):i-x):                    
+                        layercount=map(operator.itemgetter(1),count)
+                        layeralt=[x*altstep+tempalts.iloc[0] for x in layercount]
                         if len(layeralt)==1:
                             continue
                         else:
                             base=layeralt[0]
                             top=layeralt[-1]
-                            typemask.loc[t,(typemask.columns>=base)&(typemask.columns<=top)]='Insufficient Signal'
-                            subtypemask.loc[t,(subtypemask.columns>=base)&(subtypemask.columns<=top)]='Insufficient Singal'
-                            lrat.loc[t,(lrat.columns>=base)&(lrat.columns<=top)]=udefrat
-                            depolrat.loc[t,(depolrat.columns>=base)&(depolrat.columns<=top)]=udefdepol
-                            delta.loc[t,(delta.columns>=base)&(delta.columns<=top)]=0.0
-                            layerbase.loc[t,(layerbase.columns>=base)&(layerbase.columns<=top)]=base
-                            layertop.loc[t,(layertop.columns>=base)&(layertop.columns<=top)]=top
-                            colormask.loc[t,(colormask.columns>=base)&(colormask.columns<=top)]=colordict['Insufficient Signal']
+                            unidentifiedBR=LNCin.BR.loc[t,base:top]
+                            unidentifiedPR=LNCin.PR.loc[t,base:top]
+                            if len(unidentifiedBR) <= minlayerwidth:
+                                continue
+                            else:
+                                peakval=max(unidentifiedBR)
+                                meandepolrat=np.mean(unidentifiedPR)
+                                layerdelta=np.max([peakval-unidentifiedBR.iloc[0],peakval-unidentifiedBR.iloc[-1]])
+                                
+                                if peakval <= 0.0 or meandepolrat <= 0.0:
+                                    layertype='Insufficient Signal'
+                                    layersubtype='Insufficient Signal'
+                                    layerratio=udefrat
+                                    meandepolrat=udefdepol
+                                    
+                                elif meandepolrat >= 0.5:
+                                    layertype='Cloud'  
+                                    layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
+                                                                           icethresh=icethresh)    
+                                elif base>= maxaeroalt:
+                                    layertype='Cloud'  
+                                    layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
+                                                                           icethresh=icethresh)
+                                elif peakval >= cloudthresh[0]:
+                                    layertype='Cloud'  
+                                    layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
+                                                                           icethresh=icethresh)    
+                                elif peakval >= cloudthresh[1] and meandepolrat>np.mean([waterthresh,icethresh]):
+                                    layertype='Cloud'  
+                                    layersubtype,layerratio=icewaterfilter(meandepolrat,waterthresh=waterthresh,
+                                                                           icethresh=icethresh)
+                                else:
+                                    layertype='Aerosol'
+                                    layersubtype,layerratio=aerosoltypefilter(meandepolrat,smokethresh=smokethresh,
+                                                                              dustthresh=dustthresh)
+                                                                              
+                                typemask.loc[t,(typemask.columns>=base)&(typemask.columns<=top)]=layertype
+                                subtypemask.loc[t,(subtypemask.columns>=base)&(subtypemask.columns<=top)]=layersubtype
+                                lrat.loc[t,(lrat.columns>=base)&(lrat.columns<=top)]=layerratio
+                                depolrat.loc[t,(depolrat.columns>=base)&(depolrat.columns<=top)]=meandepolrat
+                                delta.loc[t,(delta.columns>=base)&(delta.columns<=top)]=layerdelta
+                                layerbase.loc[t,(layerbase.columns>=base)&(layerbase.columns<=top)]=base
+                                layertop.loc[t,(layertop.columns>=base)&(layertop.columns<=top)]=top
+                                colormask.loc[t,(colormask.columns>=base)&(colormask.columns<=top)]=colordict[layersubtype]
                             
     typemask.fillna(method='ffill',axis=1,inplace=True)
     subtypemask.fillna(method='ffill',axis=1,inplace=True) 
@@ -889,7 +964,7 @@ def coefprofs(profin,lratprof,**kwargs):
     refalt=kwargs.get('refalt',profin.index[-1])
     energy=kwargs.get('energy',1.0)
     calrange=kwargs.get('calrange',None)
-    wave=kwargs.get('wave',532.0)
+    wave=kwargs.get('wave',2064.0)
     
     if pan.isnull(profin).all():
         backprof=pan.Series(0,index=profin.index)
@@ -928,7 +1003,6 @@ def basiccorrection(LNCin,**kwargs):
     
     for t in times:
         tempprof=BRdat.ix[t]
-        print t
         if np.isnan(tempprof).all():
             tempbackscatter.ix[t]=np.nan
             tempextinction.ix[t]=np.nan
@@ -944,15 +1018,16 @@ def basiccorrection(LNCin,**kwargs):
                 templrat=pan.Series(data=lrat,index=alts)
             else:
                 templrat=scenepanel.loc['Lidar_Ratio',t]
-            coefkwargs={}
+#            coefkwargs={}
     #           coefkwargs['wave']=wave
     #           coefkwargs['refalt']=refalt
-            coefkwargs['method']=method
+#            coefkwargs['method']=method
     #           coefkwargs['energy']=mpl.header['energy'].ix[t]
     #           coefkwargs['calrange']=calrange
-            if np.isnan(tempprof).any() or np.isnan(templrat).any():
-                print 'trouble at {0}'.format(t)
-            tempbeta,tempsigma=itools.invert_profile(tempprof,templrat,**coefkwargs)
+#            if np.isnan(tempprof).any() or np.isnan(templrat).any():
+#                print 'trouble at {0}'.format(t)
+            if method=='klett2':
+                tempbeta,tempsigma=itools.klett2(tempprof,templrat,r_m=refalt,wave=wave)
             tempbackscatter.ix[t]=tempbeta
             tempextinction.ix[t]=tempsigma
     LNCin.backscatter=tempbackscatter
@@ -1092,9 +1167,10 @@ def sceneoptimize(LNCin,**kwargs):
     coefkwargs['wave']=wave
     coefkwargs['calrange']=calrange
     coefkwargs['lrat']=lrat
+    coefkwargs['mode']=mode
     
     if LNCout.backscatter is None or LNCout.extinction is None:
-        mplout=basiccorrection(mplout,**coefkwargs)
+        LNCout=basiccorrection(LNCout,**coefkwargs)
 
     BR=LNCout.BR
     backscatter=LNCout.backscatter
@@ -1141,7 +1217,7 @@ def sceneoptimize(LNCin,**kwargs):
                     for tempalt in lratbelow.index[::-1]:
                         if typebelow.ix[tempalt]=='Clear Air':
                             z.append(tempalt)
-                            tempprof.append(NRBprof.ix[tempalt])
+                            tempprof.append(BRprof.ix[tempalt])
                         else:
                             break
                     molbelow=pan.Series(tempprof[::-1],index=z[::-1])
@@ -1150,17 +1226,17 @@ def sceneoptimize(LNCin,**kwargs):
                     for tempalt in lratabove.index:
                         if typeabove.ix[tempalt]=='Clear Air':
                             z.append(tempalt)
-                            tempprof.append(NRBprof.ix[tempalt])
+                            tempprof.append(BRprof.ix[tempalt])
                         else:
                             break
                     molabove=pan.Series(tempprof,index=z)
                     corkwargs={}
-                    corkwargs['energy']=mplin.header['energy'].ix[t]
+                    corkwargs['energy']=LNCin.header['energy'].ix[t]
                     corkwargs['method']=method
                     corkwargs['molbelow']=molbelow
                     corkwargs['molabove']=molabove
                     
-                    print "Type is {0} mean signal is {1}".format(ltype,np.mean(tempNRB))
+                    print "Type is {0} mean signal is {1}".format(ltype,np.mean(tempBR))
                     backcor,extcor,lratcor=simplelayercorrection(tempBR,tempback,tempext,lrat,**corkwargs)
                     backprof[(backprof.index>=layerbase)&(backprof.index<=layertop)]=backcor
                     extprof[(extprof.index>=layerbase)&(extprof.index<=layertop)]=extcor
@@ -1248,53 +1324,91 @@ def quickplot(df,**kwargs):
 
     
 if __name__=='__main__':
-    os.chdir('D:\CORALNet\ASCII_Files\UBC_March_E1')
-    savefilepath='D:\CORALNet\ASCII_Files\UBC_March_E1\Processed'
-    plotfilepath='D:\CORALNet\ASCII_Files\UBC_March_E1\Figures'
+    os.chdir('E:\CORALNet\ASCII_Files\Smoke2012\UBC\July')
+    savefilepath='E:\CORALNet\ASCII_Files\Smoke2012\UBC\July\Processed'
+    plotfilepath='E:\CORALNet\ASCII_Files\Smoke2012\UBC\July\Figures'
     filepath=ltools.get_files('Select HDF5 file',filetype=('.h5','*.h5'))[0]
     filename=os.path.split(filepath)[-1]
+    
+#    BRfilepath=ltools.get_files('Select BR file',filetype=('.p','*.p'))[0]
+#    PRfilepath=ltools.get_files('Select PR file',filetype=('.p','*.p'))[0]
+#    MSKfilepath=ltools.get_files('Select MSK file',filetype=('.p','*.p'))[0]
+
     savefilename='{0}_proc-v3.h5'.format(filename.split('_proc')[0])
     plotfilename='{0}_coefplot.png'.format(filename.split('_proc')[0])
+    colorplotfilename='{0}_colorplot.png'.format(filename.split('_proc')[0])
     timestep='600S'
     altrange = np.arange(0.150,15.030,0.030)
     SNRthreshold=1.0
     molthresh=1.0
     layernoisethresh=1.0
-    sigma0=0.1
+    sigma0=0.001
     depolsigma0=0.05
+    cloudthresh=(20.0,5.0)
+    waterthresh=0.10
+    icethresh=0.35
+    smokethresh=0.10
+    dustthresh=0.20
+    maxaeroalt=10.0
+    
+    PBLCWTrange=np.arange(2,10)
+    PBLwidth=2
+    doPBL=False
+    
+    PBLrat=30.0
+    molrat=0.0
+    moldepol=0.0035
+    
+    recalc=True
+    
     
     print 'Testing LNC process functions'
     
+    
     LNCtest = ltools.LNC()
     LNCtest.fromHDF(filepath)
-#    LNCtest.alt_resample(altrange)
-#    LNCtest.calc_all()
-#    LNCtest.save_to_HDF(savefilename)
-#    
-#    layerdict=findalllayers(LNCin=LNCtest,timestep=timestep,molthresh=molthresh,
-#                            layernoisethresh=layernoisethresh,sigma0=sigma0,
-#                            depolsigma0=depolsigma0)
-#    LNCtest=scenemaker(layerdict)
-    LNCtest=basiccorrection(LNCtest,inplace=True)
+    if recalc:
+        LNCtest.alt_resample(altrange)
+        LNCtest.calc_all()
+        
+        layerkwargs={'LNCin':LNCtest,'timestep':timestep,'molthresh':molthresh,
+                     'noisethresh':layernoisethresh,'cloudthresh':cloudthresh,
+                     'doPBL':doPBL,'PBLCWTrange':PBLCWTrange,'PBLwdith':PBLwidth,
+                     'sigma0':sigma0,'depolsigma0':depolsigma0,'waterthresh':waterthresh,
+                     'icethresh':icethresh,'smokethresh':smokethresh,'dustthresh':dustthresh,
+                     'maxaeroalt':maxaeroalt}
+                     
+        scenekwargs={'PBLrat':PBLrat,'molrat':molrat,'moldepol':moldepol,'cloudthresh':cloudthresh,
+                     'waterthresh':waterthresh,'icethresh':icethresh,'smokethresh':smokethresh,
+                     'dustthresh':dustthresh,'maxaeroalt':maxaeroalt}
+        layerdict=findalllayers(**layerkwargs)
+        LNCtest=scenemaker(layerdict)
+        LNCtest=basiccorrection(LNCtest,inplace=True)
+        if os.path.isdir(savefilepath):
+            os.chdir(savefilepath)
+        else:
+            os.mkdir(savefilepath)
+            os.chdir(savefilepath)
+            
+        LNCtest.save_to_HDF(savefilename)
+    starttime = None
+    endtime = None
+    hours = []
+    topplot_limits=(0.0,5e-5,1e-5)
+    bottomplot_limits=(0.0,2e-3,5e-4)
     
-    #    mplemp2=sceneoptimize(mpltemp,method='klett2',inplace=False)
+    kwargs = {'saveplot':True,'showplot':True,'verbose':True,
+                'savefilepath':plotfilepath,'savefilename':plotfilename,
+                'hours':hours,'bottomplot_limits':bottomplot_limits,
+                'topplot_limits':topplot_limits,'SNRmask':False,
+                'colormap':'customjet','orientation':'vertical','toptype':'backscatter',
+                'bottomtype':'extinction','logplot':False}
     
-#    mpltest=mtools.NRB_mask_all(mpltest)
-#    starttime = None
-#    endtime = None
-#    hours = ['03','06','09','12','15','18','21']
-#    topplot_limits=(0.0,2e-5,2e-6)
-#    bottomplot_limits=(0.0,2e-4,4e-5)
-#    
-#    kwargs = {'saveplot':False,'showplot':True,'verbose':True,
-#                'savefilepath':plotfilepath,'savefilename':plotfilename,
-#                'hours':hours,'bottomplot_limits':bottomplot_limits,'timestep':timestep,
-#                'topplot_limits':topplot_limits,'SNRmask':False,'altrange':altrange,
-#                'colormap':'customjet','orientation':'vertical','toptype':'backscatter',
-#                'bottomtype':'extinction'}
-#    
-#    mplot.doubleplot(mpltest,**kwargs)    
-##    
-#    mplot.colormask_plot(mpltest,saveplot=False,plotfilepath=plotfilepath,plotfilename=plotfilename)
+    lplot.doubleplot(LNCtest,**kwargs)    
+    #   
+    colorkwargs = {'saveplot':True,'showplot':True,'verbose':True,
+                    'savefilepath':plotfilepath,'savefilename':colorplotfilename,
+                    'hours':hours,'SNRmask':False,}
+    lplot.colormask_plot(LNCtest,**colorkwargs)
 
 

@@ -211,7 +211,7 @@ def BR_mask(backscatter, data, delta):
 if __name__=='__main__':
     olddir = os.getcwd()
     
-    os.chdir('C:\Users\dashamstyr\Dropbox')
+    os.chdir('E:\CORALNet\ASCII_Files\Smoke2012\Whistler')
     
     newdir = ltools.set_dir('Select Event Folder')
     
@@ -224,7 +224,7 @@ if __name__=='__main__':
     #set altitude range and date step sizes
     minalt = 150  # minimum altitude in meters
     maxalt = 15000  # maximum altitude in meters
-    altstep = 150 # altitude step in meters
+    altstep = 30 # altitude step in meters
     altrange = np.arange(minalt,maxalt+altstep,altstep)
     
     start = []#datetime.datetime(2013,04,22,00)
