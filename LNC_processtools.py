@@ -19,6 +19,7 @@ import operator
 import inversiontools as itools
 from scipy import optimize as opt
 from scipy.ndimage.filters import generic_filter as genfilt
+import datetime as dt
 
 import LNC_tools as ltools
 import LNC_plot3 as lplot
@@ -627,6 +628,9 @@ def colormask_fromdict(LNCin,pblin,molin,layersin):
 def findalllayers(**kwargs):
     LNCin=kwargs.get('LNCin',None)
     filename=kwargs.get('filename',None)
+    dotimeresample=kwargs.get('dotimeresample',False)
+    starttime=kwargs.get('starttime',None)
+    endtime=kwargs.get('endtime',None)
     timestep=kwargs.get('timestep','240S')
     bg_alt=kwargs.get('bg_alt',None)
     molthresh=kwargs.get('molthresh',1)
@@ -658,8 +662,9 @@ def findalllayers(**kwargs):
             print "No LNC file or filename provided"
             return
     
-    LNCin.time_resample(timestep=timestep)
-    LNCin.calc_all()     
+    if dotimeresample:
+        LNCin.time_resample(starttime=starttime,endtime=endtime,timestep=timestep)
+        LNCin.calc_all()     
     
     molecular=molecular_detect(LNCin,varthresh=molthresh, winsize=winsize)
     
@@ -1324,9 +1329,9 @@ def quickplot(df,**kwargs):
 
     
 if __name__=='__main__':
-    os.chdir('E:\CORALNet\ASCII_Files\Smoke2012\UBC\July')
-    savefilepath='E:\CORALNet\ASCII_Files\Smoke2012\UBC\July\Processed'
-    plotfilepath='E:\CORALNet\ASCII_Files\Smoke2012\UBC\July\Figures'
+    os.chdir('K:\CORALNet\ASCII_Files\Smoke2012\UBC\July')
+    savefilepath='K:\CORALNet\ASCII_Files\Smoke2012\UBC\July\Processed'
+    plotfilepath='K:\CORALNet\ASCII_Files\Smoke2012\UBC\July\Figures'
     filepath=ltools.get_files('Select HDF5 file',filetype=('.h5','*.h5'))[0]
     filename=os.path.split(filepath)[-1]
     
@@ -1337,8 +1342,10 @@ if __name__=='__main__':
     savefilename='{0}_proc-v3.h5'.format(filename.split('_proc')[0])
     plotfilename='{0}_coefplot.png'.format(filename.split('_proc')[0])
     colorplotfilename='{0}_colorplot.png'.format(filename.split('_proc')[0])
+    starttime=dt.datetime(2012,07,04,00)
+    endtime=dt.datetime(2012,07,14,12)
     timestep='600S'
-    altrange = np.arange(0.150,15.030,0.030)
+    altrange = np.arange(0.150,8.030,0.030)
     SNRthreshold=1.0
     molthresh=1.0
     layernoisethresh=1.0
@@ -1360,7 +1367,7 @@ if __name__=='__main__':
     moldepol=0.0035
     
     recalc=True
-    
+    dotimeresample=True
     
     print 'Testing LNC process functions'
     
@@ -1369,9 +1376,10 @@ if __name__=='__main__':
     LNCtest.fromHDF(filepath)
     if recalc:
         LNCtest.alt_resample(altrange)
-        LNCtest.calc_all()
+#        LNCtest.calc_all()
         
-        layerkwargs={'LNCin':LNCtest,'timestep':timestep,'molthresh':molthresh,
+        layerkwargs={'LNCin':LNCtest,'dotimeresample':dotimeresample,'starttime':starttime,
+                     'endtime':endtime,'timestep':timestep,'molthresh':molthresh,
                      'noisethresh':layernoisethresh,'cloudthresh':cloudthresh,
                      'doPBL':doPBL,'PBLCWTrange':PBLCWTrange,'PBLwdith':PBLwidth,
                      'sigma0':sigma0,'depolsigma0':depolsigma0,'waterthresh':waterthresh,

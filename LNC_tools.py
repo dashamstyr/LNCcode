@@ -804,7 +804,7 @@ if __name__ == '__main__':
     olddir = os.getcwd()
     delta = 0.1
 
-    os.chdir('D:\CORALNet\ASCII_Files\Smoke2012\UBC\August')
+    os.chdir('K:\CORALNet\ASCII_Files\Smoke2012\UBC\July')
     
     BRfilename = get_files('Select BR pickle file',filetype=('.pickle','*.pickle'))[0]
     PRfilename = get_files('Select PR pickle file',filetype=('.pickle','*.pickle'))[0]
@@ -823,7 +823,7 @@ if __name__ == '__main__':
 #    
     LNCtest.calc_all(verbose=False)
     
-    LNCtest.save_to_HDF('UBC_08092012-08152012-proc_v3.h5')
+    LNCtest.save_to_HDF('UBC_20120703_PR532-UBC_20120720-proc_v3.h5')
 #    os.chdir(olddir)
 
     os.chdir(olddir)
